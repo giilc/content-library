@@ -8,29 +8,32 @@ export default function AuthCallbackPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [debug, setDebug] = useState<string>('')
+  const [status, setStatus] = useState<string>('Initializing...')
 
   useEffect(() => {
     const handleAuth = async () => {
       const supabase = createClient()
 
       // Debug info
-      const debugInfo = {
-        hash: window.location.hash,
-        search: window.location.search,
-        href: window.location.href,
+      const debugInfo: Record<string, string> = {
+        hash: window.location.hash || '(empty)',
+        search: window.location.search || '(empty)',
+        pathname: window.location.pathname,
       }
       setDebug(JSON.stringify(debugInfo, null, 2))
 
-      // First check if we already have a session
+      setStatus('Checking for existing session...')
       const { data: { session } } = await supabase.auth.getSession()
 
       if (session) {
+        setStatus('Session found! Redirecting...')
         router.push('/dashboard')
         return
       }
 
       // Handle hash fragment tokens (implicit flow)
       if (window.location.hash) {
+        setStatus('Processing hash tokens...')
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
@@ -45,7 +48,7 @@ export default function AuthCallbackPage() {
             router.push('/dashboard')
             return
           }
-          setError(sessionError.message)
+          setError(`Hash token error: ${sessionError.message}`)
           return
         }
       }
@@ -55,12 +58,17 @@ export default function AuthCallbackPage() {
       const code = params.get('code')
 
       if (code) {
+        setStatus('Exchanging PKCE code for session...')
+        debugInfo.code = code.substring(0, 20) + '...'
+        setDebug(JSON.stringify(debugInfo, null, 2))
+
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (!exchangeError) {
+          setStatus('Success! Redirecting...')
           router.push('/dashboard')
           return
         }
-        setError(exchangeError.message)
+        setError(`PKCE error: ${exchangeError.message}`)
         return
       }
 
@@ -69,6 +77,7 @@ export default function AuthCallbackPage() {
       const type = params.get('type')
 
       if (tokenHash && type) {
+        setStatus('Verifying OTP...')
         const { error: otpError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
           type: type as 'email' | 'magiclink',
@@ -77,12 +86,12 @@ export default function AuthCallbackPage() {
           router.push('/dashboard')
           return
         }
-        setError(otpError.message)
+        setError(`OTP error: ${otpError.message}`)
         return
       }
 
       // Nothing worked
-      setError('No authentication data found. Please try logging in again.')
+      setError('No authentication data found in URL. Make sure you click the magic link in the same browser where you requested it.')
     }
 
     handleAuth()
@@ -107,7 +116,7 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="card max-w-md w-full text-center">
         <h1 className="text-xl font-bold text-gray-900 mb-4">Signing you in...</h1>
-        <p className="text-gray-600 mb-4">Please wait while we confirm your authentication.</p>
+        <p className="text-gray-600 mb-2">{status}</p>
         <pre className="text-left text-xs bg-gray-100 p-2 rounded mb-4 overflow-auto max-h-40">{debug || 'Loading...'}</pre>
       </div>
     </div>
