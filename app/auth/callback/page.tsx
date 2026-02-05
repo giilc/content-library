@@ -36,14 +36,27 @@ export default function AuthCallbackPage() {
               refresh_token: refreshToken,
             })
 
-            if (!sessionError) {
-              setStatus('Session created! Redirecting...')
-              setTimeout(() => {
-                window.location.href = '/dashboard?auth=success'
-              }, 300)
+            if (sessionError) {
+              setError(`Token error: ${sessionError.message}`)
               return
             }
-            setError(`Token error: ${sessionError.message}`)
+
+            // Sync session to server (sets proper cookies)
+            setStatus('Syncing session...')
+            const syncRes = await fetch('/api/auth/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+            })
+
+            if (!syncRes.ok) {
+              const syncData = await syncRes.json()
+              setError(`Server sync failed: ${syncData.error}`)
+              return
+            }
+
+            setStatus('Success! Redirecting to dashboard...')
+            window.location.href = '/dashboard'
             return
           }
         }
