@@ -1,20 +1,36 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-browser'
 import Navbar from '@/components/Navbar'
 import ContentList from '@/components/ContentList'
 import { ContentItem } from '@/lib/types'
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
+export default function DashboardPage() {
+  const [items, setItems] = useState<ContentItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const { data: items, error } = await supabase
-    .from('content_items')
-    .select('*')
-    .order('created_at', { ascending: false })
+  useEffect(() => {
+    const fetchItems = async () => {
+      const supabase = createClient()
 
-  if (error) {
-    console.error('Error fetching items:', error)
-  }
+      const { data, error: fetchError } = await supabase
+        .from('content_items')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (fetchError) {
+        setError(fetchError.message)
+      } else {
+        setItems(data as ContentItem[] || [])
+      }
+      setLoading(false)
+    }
+
+    fetchItems()
+  }, [])
 
   return (
     <div className="min-h-screen">
@@ -27,7 +43,13 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <ContentList items={(items as ContentItem[]) || []} />
+        {loading ? (
+          <p className="text-gray-500">Loading...</p>
+        ) : error ? (
+          <p className="text-red-500">Error: {error}</p>
+        ) : (
+          <ContentList items={items} />
+        )}
       </main>
     </div>
   )
