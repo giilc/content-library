@@ -27,7 +27,8 @@ export default function AuthCallbackPage() {
 
       if (session) {
         setStatus('Session found! Redirecting...')
-        window.location.href = '/dashboard'
+        // Add timestamp to bypass middleware cache check
+        window.location.href = '/dashboard?auth=success'
         return
       }
 
