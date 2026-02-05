@@ -16,9 +16,11 @@ export async function middleware(request: NextRequest) {
 
   // Skip auth check if coming from auth callback (cookies may not be synced yet)
   if (request.nextUrl.searchParams.get('auth') === 'success') {
-    // Just pass through - don't redirect, let the page load
     return NextResponse.next()
   }
+
+  // Check for session marker cookie (set by client after successful auth)
+  const hasSessionMarker = request.cookies.get('auth-session')?.value === 'active'
 
   let supabaseResponse = NextResponse.next({
     request,
@@ -58,14 +60,15 @@ export async function middleware(request: NextRequest) {
   )
 
   // If not authenticated and trying to access protected route
-  if (!user && !isPublicPath) {
+  // Also check for session marker cookie as fallback
+  if (!user && !hasSessionMarker && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // If authenticated and on login page, redirect to dashboard
-  if (user && request.nextUrl.pathname === '/login') {
+  if ((user || hasSessionMarker) && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

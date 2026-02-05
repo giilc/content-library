@@ -41,19 +41,8 @@ export default function AuthCallbackPage() {
               return
             }
 
-            // Sync session to server (sets proper cookies)
-            setStatus('Syncing session...')
-            const syncRes = await fetch('/api/auth/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
-            })
-
-            if (!syncRes.ok) {
-              const syncData = await syncRes.json()
-              setError(`Server sync failed: ${syncData.error}`)
-              return
-            }
+            // Set a session marker cookie that middleware can read
+            document.cookie = `auth-session=active; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
             setStatus('Success! Redirecting to dashboard...')
             window.location.href = '/dashboard'
@@ -67,7 +56,8 @@ export default function AuthCallbackPage() {
 
         if (session) {
           setStatus('Session found! Redirecting...')
-          window.location.href = '/dashboard?auth=success'
+          document.cookie = `auth-session=active; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+          window.location.href = '/dashboard'
           return
         }
 
@@ -81,9 +71,8 @@ export default function AuthCallbackPage() {
 
           if (!exchangeError && data.session) {
             setStatus('Session created! Redirecting...')
-            setTimeout(() => {
-              window.location.href = '/dashboard?auth=success'
-            }, 300)
+            document.cookie = `auth-session=active; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+            window.location.href = '/dashboard'
             return
           }
           setError(`Code exchange failed: ${exchangeError?.message || 'No session'}`)
@@ -101,7 +90,8 @@ export default function AuthCallbackPage() {
             type: type as 'email' | 'magiclink',
           })
           if (!otpError) {
-            window.location.href = '/dashboard?auth=success'
+            document.cookie = `auth-session=active; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+            window.location.href = '/dashboard'
             return
           }
           setError(`OTP error: ${otpError.message}`)
