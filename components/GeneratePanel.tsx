@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { ContentItem, GeneratedContent } from '@/lib/types'
-import { generateContent } from '@/lib/generator'
 
 interface GeneratePanelProps {
   item: ContentItem
@@ -10,11 +9,38 @@ interface GeneratePanelProps {
 
 export default function GeneratePanel({ item }: GeneratePanelProps) {
   const [generated, setGenerated] = useState<GeneratedContent | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
-  const handleGenerate = () => {
-    const content = generateContent(item)
-    setGenerated(content)
+  const handleGenerate = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: item.title,
+          platform: item.platform,
+          notes: item.notes,
+          tags: item.tags,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Generation failed')
+      }
+
+      const content = await res.json()
+      setGenerated(content)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -26,23 +52,43 @@ export default function GeneratePanel({ item }: GeneratePanelProps) {
   return (
     <div className="card bg-gray-50">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Generate Content</h2>
-        <button onClick={handleGenerate} className="btn btn-primary">
-          Generate
+        <h2 className="text-lg font-semibold text-gray-900">
+          Generate Content
+          <span className="ml-2 text-xs font-normal text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
+            AI Powered
+          </span>
+        </h2>
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="btn btn-primary"
+        >
+          {loading ? 'Generating...' : 'Generate'}
         </button>
       </div>
 
-      {!generated ? (
+      {error && (
+        <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm mb-4">
+          {error}
+        </div>
+      )}
+
+      {!generated && !loading ? (
         <p className="text-gray-500 text-sm">
-          Click "Generate" to create title ideas, description, hashtags, and a
-          pinned comment based on your content details.
+          Click "Generate" to create AI-powered title ideas, description,
+          hashtags, and a pinned comment based on your content details.
         </p>
-      ) : (
+      ) : loading ? (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-500 mt-2">AI is generating your content...</p>
+        </div>
+      ) : generated ? (
         <div className="space-y-6">
           {/* Title Ideas */}
           <section>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-800">Title Ideas (5)</h3>
+              <h3 className="font-medium text-gray-800">Title Ideas</h3>
               <button
                 onClick={() =>
                   copyToClipboard(generated.titleIdeas.join('\n'), 'titles')
@@ -87,7 +133,7 @@ export default function GeneratePanel({ item }: GeneratePanelProps) {
           {/* Hashtags */}
           <section>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-800">Hashtags (15)</h3>
+              <h3 className="font-medium text-gray-800">Hashtags</h3>
               <button
                 onClick={() =>
                   copyToClipboard(generated.hashtags.join(' '), 'hashtags')
@@ -131,10 +177,10 @@ export default function GeneratePanel({ item }: GeneratePanelProps) {
 
           {/* Regenerate hint */}
           <p className="text-xs text-gray-400 text-center">
-            Click "Generate" again for different variations
+            Click "Generate" again for different AI-generated variations
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
