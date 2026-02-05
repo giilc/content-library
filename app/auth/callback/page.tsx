@@ -7,14 +7,23 @@ import { createClient } from '@/lib/supabase-browser'
 export default function AuthCallbackPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [debug, setDebug] = useState<string>('')
 
   useEffect(() => {
     const handleAuth = async () => {
       const supabase = createClient()
-      
+
+      // Debug info
+      const debugInfo = {
+        hash: window.location.hash,
+        search: window.location.search,
+        href: window.location.href,
+      }
+      setDebug(JSON.stringify(debugInfo, null, 2))
+
       // First check if we already have a session
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (session) {
         router.push('/dashboard')
         return
@@ -31,7 +40,7 @@ export default function AuthCallbackPage() {
             access_token: accessToken,
             refresh_token: refreshToken,
           })
-          
+
           if (!sessionError) {
             router.push('/dashboard')
             return
@@ -44,7 +53,7 @@ export default function AuthCallbackPage() {
       // Handle code parameter (PKCE flow)
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
-      
+
       if (code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (!exchangeError) {
@@ -58,7 +67,7 @@ export default function AuthCallbackPage() {
       // Handle token_hash parameter
       const tokenHash = params.get('token_hash')
       const type = params.get('type')
-      
+
       if (tokenHash && type) {
         const { error: otpError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
@@ -85,6 +94,7 @@ export default function AuthCallbackPage() {
         <div className="card max-w-md w-full text-center">
           <h1 className="text-xl font-bold text-red-600 mb-4">Authentication Error</h1>
           <p className="text-gray-600 mb-4">{error}</p>
+          <pre className="text-left text-xs bg-gray-100 p-2 rounded mb-4 overflow-auto">{debug}</pre>
           <a href="/login" className="btn btn-primary inline-block">
             Back to Login
           </a>
