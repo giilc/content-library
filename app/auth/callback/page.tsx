@@ -12,88 +12,100 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleAuth = async () => {
-      const supabase = createClient()
+      try {
+        const supabase = createClient()
 
-      // Debug info
-      const debugInfo: Record<string, string> = {
-        hash: window.location.hash || '(empty)',
-        search: window.location.search || '(empty)',
-        pathname: window.location.pathname,
-      }
-      setDebug(JSON.stringify(debugInfo, null, 2))
+        // Debug info
+        const debugInfo: Record<string, string> = {
+          hash: window.location.hash || '(empty)',
+          search: window.location.search || '(empty)',
+          pathname: window.location.pathname,
+        }
+        setDebug(JSON.stringify(debugInfo, null, 2))
 
-      setStatus('Checking for existing session...')
-      const { data: { session } } = await supabase.auth.getSession()
+        // Handle code parameter (PKCE flow) - check this FIRST before getSession
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get('code')
 
-      if (session) {
-        setStatus('Session found! Redirecting...')
-        // Add timestamp to bypass middleware cache check
-        window.location.href = '/dashboard?auth=success'
-        return
-      }
+        if (code) {
+          setStatus('Found PKCE code, exchanging for session...')
+          debugInfo.code = code.substring(0, 20) + '...'
+          setDebug(JSON.stringify(debugInfo, null, 2))
 
-      // Handle hash fragment tokens (implicit flow)
-      if (window.location.hash) {
-        setStatus('Processing hash tokens...')
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
+          if (exchangeError) {
+            setError(`PKCE exchange failed: ${exchangeError.message}`)
+            return
+          }
+
+          if (data.session) {
+            setStatus('Session created! Redirecting to dashboard...')
+            setTimeout(() => {
+              window.location.href = '/dashboard?auth=success'
+            }, 500)
+            return
+          }
+
+          setError('PKCE exchange returned no session')
+          return
+        }
+
+        // No code - check for existing session
+        setStatus('Checking for existing session...')
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (session) {
+          setStatus('Session found! Redirecting...')
+          window.location.href = '/dashboard?auth=success'
+          return
+        }
+
+        // Handle hash fragment tokens (implicit flow)
+        if (window.location.hash) {
+          setStatus('Processing hash tokens...')
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
+
+          if (accessToken && refreshToken) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+
+            if (!sessionError) {
+              window.location.href = '/dashboard?auth=success'
+              return
+            }
+            setError(`Hash token error: ${sessionError.message}`)
+            return
+          }
+        }
+
+        // Handle token_hash parameter
+        const tokenHash = params.get('token_hash')
+        const type = params.get('type')
+
+        if (tokenHash && type) {
+          setStatus('Verifying OTP...')
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as 'email' | 'magiclink',
           })
-
-          if (!sessionError) {
+          if (!otpError) {
             window.location.href = '/dashboard?auth=success'
             return
           }
-          setError(`Hash token error: ${sessionError.message}`)
+          setError(`OTP error: ${otpError.message}`)
           return
         }
+
+        // Nothing worked
+        setError('No authentication data found in URL. Please request a new magic link.')
+      } catch (err) {
+        setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
       }
-
-      // Handle code parameter (PKCE flow)
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
-
-      if (code) {
-        setStatus('Exchanging PKCE code for session...')
-        debugInfo.code = code.substring(0, 20) + '...'
-        setDebug(JSON.stringify(debugInfo, null, 2))
-
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (!exchangeError && data.session) {
-          setStatus('Success! Session created. Redirecting...')
-          // Use full page redirect with bypass param for cookie sync
-          window.location.href = '/dashboard?auth=success'
-          return
-        }
-        setError(`PKCE error: ${exchangeError?.message || 'No session returned'}`)
-        return
-      }
-
-      // Handle token_hash parameter
-      const tokenHash = params.get('token_hash')
-      const type = params.get('type')
-
-      if (tokenHash && type) {
-        setStatus('Verifying OTP...')
-        const { error: otpError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: type as 'email' | 'magiclink',
-        })
-        if (!otpError) {
-          window.location.href = '/dashboard?auth=success'
-          return
-        }
-        setError(`OTP error: ${otpError.message}`)
-        return
-      }
-
-      // Nothing worked
-      setError('No authentication data found in URL. Make sure you click the magic link in the same browser where you requested it.')
     }
 
     handleAuth()

@@ -16,10 +16,8 @@ export async function middleware(request: NextRequest) {
 
   // Skip auth check if coming from auth callback (cookies may not be synced yet)
   if (request.nextUrl.searchParams.get('auth') === 'success') {
-    // Remove the query param and continue
-    const url = request.nextUrl.clone()
-    url.searchParams.delete('auth')
-    return NextResponse.redirect(url)
+    // Just pass through - don't redirect, let the page load
+    return NextResponse.next()
   }
 
   let supabaseResponse = NextResponse.next({
