@@ -46,7 +46,7 @@ export default function AuthCallbackPage() {
           })
 
           if (!sessionError) {
-            window.location.href = '/dashboard'
+            window.location.href = '/dashboard?auth=success'
             return
           }
           setError(`Hash token error: ${sessionError.message}`)
@@ -66,8 +66,8 @@ export default function AuthCallbackPage() {
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (!exchangeError && data.session) {
           setStatus('Success! Session created. Redirecting...')
-          // Use full page redirect to ensure cookies are properly set
-          window.location.href = '/dashboard'
+          // Use full page redirect with bypass param for cookie sync
+          window.location.href = '/dashboard?auth=success'
           return
         }
         setError(`PKCE error: ${exchangeError?.message || 'No session returned'}`)
@@ -85,7 +85,7 @@ export default function AuthCallbackPage() {
           type: type as 'email' | 'magiclink',
         })
         if (!otpError) {
-          window.location.href = '/dashboard'
+          window.location.href = '/dashboard?auth=success'
           return
         }
         setError(`OTP error: ${otpError.message}`)
