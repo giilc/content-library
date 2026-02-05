@@ -9,6 +9,11 @@ type CookieToSet = {
 }
 
 export async function middleware(request: NextRequest) {
+  // Skip middleware for auth callback - let it handle auth on client side
+  if (request.nextUrl.pathname.startsWith('/auth/')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
