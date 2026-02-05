@@ -107,7 +107,8 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="card max-w-md w-full text-center">
         <h1 className="text-xl font-bold text-gray-900 mb-4">Signing you in...</h1>
-        <p className="text-gray-600">Please wait while we confirm your authentication.</p>
+        <p className="text-gray-600 mb-4">Please wait while we confirm your authentication.</p>
+        <pre className="text-left text-xs bg-gray-100 p-2 rounded mb-4 overflow-auto max-h-40">{debug || 'Loading...'}</pre>
       </div>
     </div>
   )
