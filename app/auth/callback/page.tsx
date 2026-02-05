@@ -27,7 +27,7 @@ export default function AuthCallbackPage() {
 
       if (session) {
         setStatus('Session found! Redirecting...')
-        router.push('/dashboard')
+        window.location.href = '/dashboard'
         return
       }
 
@@ -45,7 +45,7 @@ export default function AuthCallbackPage() {
           })
 
           if (!sessionError) {
-            router.push('/dashboard')
+            window.location.href = '/dashboard'
             return
           }
           setError(`Hash token error: ${sessionError.message}`)
@@ -62,13 +62,14 @@ export default function AuthCallbackPage() {
         debugInfo.code = code.substring(0, 20) + '...'
         setDebug(JSON.stringify(debugInfo, null, 2))
 
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (!exchangeError) {
-          setStatus('Success! Redirecting...')
-          router.push('/dashboard')
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (!exchangeError && data.session) {
+          setStatus('Success! Session created. Redirecting...')
+          // Use full page redirect to ensure cookies are properly set
+          window.location.href = '/dashboard'
           return
         }
-        setError(`PKCE error: ${exchangeError.message}`)
+        setError(`PKCE error: ${exchangeError?.message || 'No session returned'}`)
         return
       }
 
@@ -83,7 +84,7 @@ export default function AuthCallbackPage() {
           type: type as 'email' | 'magiclink',
         })
         if (!otpError) {
-          router.push('/dashboard')
+          window.location.href = '/dashboard'
           return
         }
         setError(`OTP error: ${otpError.message}`)
