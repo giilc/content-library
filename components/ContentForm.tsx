@@ -42,24 +42,38 @@ export default function ContentForm({ item, mode }: ContentFormProps) {
     const supabase = createClient()
 
     if (mode === 'create') {
+      // Try getUser first, fall back to getSession
+      let userId: string | null = null
+
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in')
+      if (user) {
+        userId = user.id
+      } else {
+        // Fallback: try getSession
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          userId = session.user.id
+        }
+      }
+
+      if (!userId) {
+        setError('You must be logged in. Please refresh the page and try again.')
         setLoading(false)
         return
       }
 
       const { error: insertError } = await supabase
         .from('content_items')
-        .insert({ ...formData, user_id: user.id })
+        .insert({ ...formData, user_id: userId })
 
       if (insertError) {
-        setError(insertError.message)
+        setError(`Failed to create: ${insertError.message}`)
         setLoading(false)
         return
       }
 
       router.push('/dashboard')
+      router.refresh()
     } else {
       const { error: updateError } = await supabase
         .from('content_items')
