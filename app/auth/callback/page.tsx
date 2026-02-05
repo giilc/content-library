@@ -17,53 +17,15 @@ export default function AuthCallbackPage() {
 
         // Debug info
         const debugInfo: Record<string, string> = {
-          hash: window.location.hash || '(empty)',
+          hash: window.location.hash ? '(has tokens)' : '(empty)',
           search: window.location.search || '(empty)',
           pathname: window.location.pathname,
         }
         setDebug(JSON.stringify(debugInfo, null, 2))
 
-        // Handle code parameter (PKCE flow) - check this FIRST before getSession
-        const params = new URLSearchParams(window.location.search)
-        const code = params.get('code')
-
-        if (code) {
-          setStatus('Found PKCE code, exchanging for session...')
-          debugInfo.code = code.substring(0, 20) + '...'
-          setDebug(JSON.stringify(debugInfo, null, 2))
-
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-
-          if (exchangeError) {
-            setError(`PKCE exchange failed: ${exchangeError.message}`)
-            return
-          }
-
-          if (data.session) {
-            setStatus('Session created! Redirecting to dashboard...')
-            setTimeout(() => {
-              window.location.href = '/dashboard?auth=success'
-            }, 500)
-            return
-          }
-
-          setError('PKCE exchange returned no session')
-          return
-        }
-
-        // No code - check for existing session
-        setStatus('Checking for existing session...')
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (session) {
-          setStatus('Session found! Redirecting...')
-          window.location.href = '/dashboard?auth=success'
-          return
-        }
-
-        // Handle hash fragment tokens (implicit flow)
-        if (window.location.hash) {
-          setStatus('Processing hash tokens...')
+        // Handle hash fragment tokens FIRST (implicit flow)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          setStatus('Processing tokens from URL...')
           const hashParams = new URLSearchParams(window.location.hash.substring(1))
           const accessToken = hashParams.get('access_token')
           const refreshToken = hashParams.get('refresh_token')
@@ -75,12 +37,44 @@ export default function AuthCallbackPage() {
             })
 
             if (!sessionError) {
-              window.location.href = '/dashboard?auth=success'
+              setStatus('Session created! Redirecting...')
+              setTimeout(() => {
+                window.location.href = '/dashboard?auth=success'
+              }, 300)
               return
             }
-            setError(`Hash token error: ${sessionError.message}`)
+            setError(`Token error: ${sessionError.message}`)
             return
           }
+        }
+
+        // Check for existing session
+        setStatus('Checking for existing session...')
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (session) {
+          setStatus('Session found! Redirecting...')
+          window.location.href = '/dashboard?auth=success'
+          return
+        }
+
+        // Handle PKCE code if present (fallback)
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get('code')
+
+        if (code) {
+          setStatus('Exchanging code for session...')
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (!exchangeError && data.session) {
+            setStatus('Session created! Redirecting...')
+            setTimeout(() => {
+              window.location.href = '/dashboard?auth=success'
+            }, 300)
+            return
+          }
+          setError(`Code exchange failed: ${exchangeError?.message || 'No session'}`)
+          return
         }
 
         // Handle token_hash parameter
@@ -102,7 +96,7 @@ export default function AuthCallbackPage() {
         }
 
         // Nothing worked
-        setError('No authentication data found in URL. Please request a new magic link.')
+        setError('No authentication data found. Please request a new magic link.')
       } catch (err) {
         setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
       }
