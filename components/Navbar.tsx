@@ -10,7 +10,9 @@ export default function Navbar() {
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    // Clear the auth session marker cookie
+    document.cookie = 'auth-session=; path=/; max-age=0'
+    window.location.href = '/login'
   }
 
   return (
