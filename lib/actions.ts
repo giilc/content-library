@@ -102,22 +102,37 @@ export async function bulkUpdateStatus(
 ): Promise<{ success: boolean; count: number }> {
   const supabase = await createClient()
 
+  // Verify user is authenticated
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    console.error('[bulkUpdateStatus] Auth error:', authError)
+    throw new Error('Not authenticated')
+  }
+
+  console.log('[bulkUpdateStatus] User:', user.id)
   console.log('[bulkUpdateStatus] Updating', ids.length, 'items to status:', status)
   console.log('[bulkUpdateStatus] IDs:', ids)
 
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from('content_items')
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .in('id', ids)
     .select()
 
-  console.log('[bulkUpdateStatus] Result:', { data, error, count })
+  console.log('[bulkUpdateStatus] Result:', { dataCount: data?.length, error })
 
   if (error) {
     console.error('[bulkUpdateStatus] Error:', error)
     throw new Error(error.message)
   }
-  return { success: true, count: count || ids.length }
+
+  // Check if update actually happened
+  if (!data || data.length === 0) {
+    console.error('[bulkUpdateStatus] No rows updated - RLS may be blocking')
+    throw new Error('Update failed - no items were modified')
+  }
+
+  return { success: true, count: data.length }
 }
 
 export async function bulkAddTags(
