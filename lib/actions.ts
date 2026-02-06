@@ -117,6 +117,7 @@ export async function bulkUpdateStatus(
     .from('content_items')
     .update({ status, updated_at: new Date().toISOString() })
     .in('id', ids)
+    .eq('user_id', user.id)  // Explicitly filter by user for safety
     .select()
 
   console.log('[bulkUpdateStatus] Result:', { dataCount: data?.length, error })
